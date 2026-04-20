@@ -5,6 +5,8 @@ Hi! Thanks for stopping by my portfolio. I'm currently a student learning data e
 ### Why the Argentine Market?
 When learning Time Series analysis and Anomaly Detection, you need data that actually moves. I chose the Argentine market (the MERVAL index, local ADRs, and the FX rate) because its extreme volatility, high inflation, and sudden political shocks make it a great place to learn. Instead of looking at a flat chart, tracking the Argentine market during the 2023 elections shows you exactly what a massive economic swing looks like in the data.
 
+I also implemented Digital Signal Processing (a Savitzky-Golay low-pass filter) to calculate a Signal-to-Noise Ratio (SNR). This allows the tool to mathematically distinguish whether an asset is moving due to underlying Market Trends (the core signal) or purely due to short-term Political Noise and panic.
+
 ### Intentionally Upskilling
 While I already have a strong mastery of traditional data engineering tools like Pandas, Jupyter, and SQLite, I deliberately chose the 2026 Modern Data Stack (Polars, DuckDB, Marimo) for this project to push my boundaries and learn the latest industry standards.
 

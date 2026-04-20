@@ -3,6 +3,7 @@ import marimo
 __generated_with = "0.23.1"
 app = marimo.App(width="medium")
 
+
 @app.cell
 def _():
     import marimo as mo
@@ -12,37 +13,52 @@ def _():
     from plotly.subplots import make_subplots
     from scipy.signal import savgol_filter
     import datetime
+    from analyzer import calculate_snr
 
-    return datetime, duckdb, go, make_subplots, mo, pl, savgol_filter
+    return calculate_snr, datetime, duckdb, go, make_subplots, mo, pl, savgol_filter
+
 
 @app.cell
-def _(duckdb, pl):
+def _(calculate_snr, duckdb, pl):
     # Data Connection
     con = duckdb.connect("merval_data.db", read_only=True)
     # Load into a polars DataFrame
     df = con.execute("SELECT * FROM merval_prices").pl()
-    
+
     # Exclude GGAL.BA from the primary ticker dropdown so it's not analyzed as a main asset directly, it's used for CCL
     tickers = [t for t in df["Ticker"].unique().to_list() if t != "GGAL.BA"]
-    
+
     # --- Calculate CCL and Brecha ---
     df_ggalba = df.filter(pl.col("Ticker") == "GGAL.BA").select(["Date", "Close"]).rename({"Close": "GGAL_BA_Close"})
     df_ggal = df.filter(pl.col("Ticker") == "GGAL").select(["Date", "Close"]).rename({"Close": "GGAL_Close"})
     df_arsx = df.filter(pl.col("Ticker") == "ARS=X").select(["Date", "Close"]).rename({"Close": "ARS_X_Close"})
-    
+
     df_ccl = df_ggalba.join(df_ggal, on="Date", how="inner").join(df_arsx, on="Date", how="inner")
-    
+
     # Calculate implicit CCL: (GGAL.BA * 10) / GGAL
     df_ccl = df_ccl.with_columns(
         ((pl.col("GGAL_BA_Close") * 10) / pl.col("GGAL_Close")).alias("CCL_Price")
     )
-    
+
     # Calculate Brecha (% gap between CCL and Official ARS=X)
     df_ccl = df_ccl.with_columns(
         (((pl.col("CCL_Price") / pl.col("ARS_X_Close")) - 1) * 100).alias("Brecha_Pct")
     )
+
+    # --- Calculate SNR ---
+    snrs = {}
+    for t_name in ["^MERV", "YPF", "GGAL"]:
+        s_price = df.filter(pl.col("Ticker") == t_name)["Close"].to_numpy()
+        snrs[t_name] = calculate_snr(s_price)
+    snrs["CCL"] = calculate_snr(df_ccl["CCL_Price"].to_numpy())
     
-    return con, df, df_ccl, tickers
+    snr_table = pl.DataFrame({
+        "Asset": list(snrs.keys()),
+        "SNR Ratio": [round(v, 2) for v in snrs.values()]
+    }).sort("SNR Ratio")
+
+    return df, df_ccl, snr_table, tickers
+
 
 @app.cell
 def _(mo, tickers):
@@ -68,7 +84,7 @@ def _(mo, tickers):
         {"date": "2025-01-20", "title": "Inauguration of US President Trump", "category": "Market/External"},
         {"date": "2025-03-01", "title": "Opening of Regular Congressional Sessions", "category": "Official Measure"}
     ]
-    
+
     # Interactivity
     ticker_dropdown = mo.ui.dropdown(
         options=tickers,
@@ -77,17 +93,18 @@ def _(mo, tickers):
     )
     theme_switch = mo.ui.switch(label="Dark Mode", value=False)
     trend_switch = mo.ui.switch(label="Show Denoised Trend (Savitzky-Golay DSP)", value=True)
-    
+
     event_multiselect = mo.ui.multiselect(
         options={ev["title"]: ev for ev in EVENT_CATALOG},
         value=[ev["title"] for ev in EVENT_CATALOG],
         label="Overlay Events Filter:"
     )
-    
-    return EVENT_CATALOG, event_multiselect, theme_switch, ticker_dropdown, trend_switch
+
+    return event_multiselect, theme_switch, ticker_dropdown, trend_switch
+
 
 @app.cell
-def _(EVENT_CATALOG, datetime, df, event_multiselect, pl, savgol_filter, ticker_dropdown):
+def _(datetime, df, event_multiselect, pl, savgol_filter, ticker_dropdown):
     selected_ticker = ticker_dropdown.value
 
     # Filter by ticker
@@ -121,24 +138,24 @@ def _(EVENT_CATALOG, datetime, df, event_multiselect, pl, savgol_filter, ticker_
     # Fuzzy Matching (+/- 4 days)
     titles = []
     cats = []
-    
+
     # Convert dates to raw date objects for easy subtraction
     dates_list = df_calc["Date"].to_list()
     active_events = event_multiselect.value # list of event dicts
-    
+
     for _d in dates_list:
         _title, _cat = "Unknown Anomaly Event", "Unknown"
         # Extract date natively
         if hasattr(_d, 'date'): _d = _d.date()
         elif isinstance(_d, datetime.datetime): _d = _d.date()
-        
+
         for _ev in active_events:
             _ev_date = datetime.datetime.strptime(_ev["date"], "%Y-%m-%d").date()
             if abs((_d - _ev_date).days) <= 4:
                 _title = _ev["title"]
                 _cat = _ev["category"]
                 break
-        
+
         titles.append(_title)
         cats.append(_cat)
 
@@ -146,11 +163,20 @@ def _(EVENT_CATALOG, datetime, df, event_multiselect, pl, savgol_filter, ticker_
         pl.Series("Headline", titles),
         pl.Series("Category", cats)
     ])
-
     return df_calc, selected_ticker
 
+
 @app.cell
-def _(df_calc, df_ccl, go, make_subplots, pl, selected_ticker, theme_switch, trend_switch):
+def _(
+    df_calc,
+    df_ccl,
+    go,
+    make_subplots,
+    pl,
+    selected_ticker,
+    theme_switch,
+    trend_switch,
+):
     # Two Subplots: 1 for Ticker/Anomalies, 1 for Dólar CCL & Brecha with secondary Y axis
     fig = make_subplots(
         rows=2, cols=1, 
@@ -175,7 +201,7 @@ def _(df_calc, df_ccl, go, make_subplots, pl, selected_ticker, theme_switch, tre
 
     # Anomalies
     anomalies = df_calc.filter(pl.col("Is_Anomaly") == True)
-    
+
     # Plot positive anomalies strictly GREEN
     anomalies_pos = anomalies.filter(pl.col("Return") > 0)
     if len(anomalies_pos) > 0:
@@ -184,7 +210,7 @@ def _(df_calc, df_ccl, go, make_subplots, pl, selected_ticker, theme_switch, tre
             marker=dict(color='green', size=12, symbol='triangle-up', line=dict(width=1, color='darkgreen')),
             hovertemplate="Date: %{x}<br>Price: %{y:.2f}<extra></extra>"
         ), row=1, col=1)
-        
+
     # Plot negative anomalies strictly RED
     anomalies_neg = anomalies.filter(pl.col("Return") < 0)
     if len(anomalies_neg) > 0:
@@ -200,22 +226,22 @@ def _(df_calc, df_ccl, go, make_subplots, pl, selected_ticker, theme_switch, tre
     if len(matched_events) > 0:
         fig.add_trace(go.Scatter(
             x=matched_events["Date"], y=matched_events["Close"], mode='markers', name='Historical Event Map',
-            marker=dict(color='yellow', size=16, symbol='circle-open', line=dict(width=3, color='orange')),
+            marker=dict(color='gray', size=6, symbol='circle'),
             customdata=matched_events["Headline"], hovertemplate="Date: %{x}<br>Event Found: %{customdata}<extra></extra>"
         ), row=1, col=1)
-        
+
         for _d in matched_events["Date"].to_list():
-            fig.add_vline(x=_d, line_dash="dash", line_color="rgba(255, 255, 0, 0.4)", row=1, col=1)
+            fig.add_vline(x=_d, line_dash="dash", line_color="rgba(200, 200, 200, 0.5)", line_width=1, row=1, col=1)
 
     # --- BOTTOM CHART: DÓLAR CCL & BRECHA ---
     fig.add_trace(go.Scatter(
         x=df_ccl["Date"], y=df_ccl["CCL_Price"], mode='lines', name='Dólar CCL', line=dict(color='orange')
     ), row=2, col=1, secondary_y=False)
-    
+
     fig.add_trace(go.Scatter(
         x=df_ccl["Date"], y=df_ccl["ARS_X_Close"], mode='lines', name='Official USD', line=dict(color='green')
     ), row=2, col=1, secondary_y=False)
-    
+
     # Plot Brecha on Secondary Y as an area
     fig.add_trace(go.Scatter(
         x=df_ccl["Date"], y=df_ccl["Brecha_Pct"], mode='lines', 
@@ -228,11 +254,21 @@ def _(df_calc, df_ccl, go, make_subplots, pl, selected_ticker, theme_switch, tre
         hovermode="x unified",
         height=800
     )
-    
-    return anomalies, fig, matched_events
+
+    return fig, matched_events
+
 
 @app.cell
-def _(anomalies, event_multiselect, fig, matched_events, mo, theme_switch, ticker_dropdown, trend_switch):
+def _(
+    event_multiselect,
+    fig,
+    matched_events,
+    mo,
+    snr_table,
+    theme_switch,
+    ticker_dropdown,
+    trend_switch,
+):
     # UI Layout
     mo.vstack([
         mo.md("# Argentine Macro & Volatility Dashboard 🇦🇷"),
@@ -241,6 +277,9 @@ def _(anomalies, event_multiselect, fig, matched_events, mo, theme_switch, ticke
         mo.md("#### Contextual Event Filters"),
         event_multiselect,
         mo.ui.plotly(fig),
+        mo.md("### Argentina Noise Factor (Signal-to-Noise Ratio)"),
+        mo.md("A lower SNR Ratio indicates that the asset is more driven by 'political noise' and panic (short-term volatility) than by structured long-term economic trends (the core signal)."),
+        mo.ui.table(snr_table, selection=None),
         mo.md("### Flagged Anomaly Events Log"),
         mo.ui.table(
             matched_events.select(["Date", "Close", "Return", "Headline", "Category"]),
@@ -248,6 +287,7 @@ def _(anomalies, event_multiselect, fig, matched_events, mo, theme_switch, ticke
         )
     ])
     return
+
 
 if __name__ == "__main__":
     app.run()
