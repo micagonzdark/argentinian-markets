@@ -1,0 +1,4 @@
+polars
+duckdb
+marimo
+yfinance
