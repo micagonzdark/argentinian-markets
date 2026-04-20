@@ -230,8 +230,8 @@ def _(
             customdata=matched_events["Headline"], hovertemplate="Date: %{x}<br>Event Found: %{customdata}<extra></extra>"
         ), row=1, col=1)
 
-        for _d in matched_events["Date"].to_list():
-            fig.add_vline(x=_d, line_dash="dash", line_color="rgba(200, 200, 200, 0.5)", line_width=1, row=1, col=1)
+        # for _d in matched_events["Date"].to_list():
+        #     fig.add_vline(x=_d, line_dash="dash", line_color="rgba(200, 200, 200, 0.5)", line_width=1, row=1, col=1)
 
     # --- BOTTOM CHART: DÓLAR CCL & BRECHA ---
     fig.add_trace(go.Scatter(
