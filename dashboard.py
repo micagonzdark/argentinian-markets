@@ -5,26 +5,27 @@ app = marimo.App(width="medium")
 
 
 @app.cell
-def __():
+def _():
     import marimo as mo
     import polars as pl
     import duckdb
     import plotly.graph_objects as go
+
     return duckdb, go, mo, pl
 
 
 @app.cell
-def __(duckdb, pl):
+def _(duckdb):
     # Data Connection
     con = duckdb.connect("merval_data.db", read_only=True)
     # Load into a polars DataFrame
     df = con.execute("SELECT * FROM merval_prices").pl()
     tickers = df["Ticker"].unique().to_list()
-    return con, df, tickers
+    return df, tickers
 
 
 @app.cell
-def __(mo, tickers):
+def _(mo, tickers):
     # Interactivity
     ticker_dropdown = mo.ui.dropdown(
         options=tickers,
@@ -36,27 +37,27 @@ def __(mo, tickers):
 
 
 @app.cell
-def __(df, pl, ticker_dropdown):
+def _(df, pl, ticker_dropdown):
     selected_ticker = ticker_dropdown.value
-    
+
     # Filter by ticker
     df_filtered = df.filter(pl.col("Ticker") == selected_ticker)
-    
+
     # Calculate daily percentage change (returns)
     df_calc = df_filtered.with_columns(
         (pl.col("Close") / pl.col("Close").shift(1) - 1).alias("Return")
     )
-    
+
     # Calculate 14-day rolling standard deviation (volatility)
     df_calc = df_calc.with_columns(
         pl.col("Return").rolling_std(window_size=14).alias("Rolling_Std")
     )
-    
+
     # Flag 'Anomalies'
     df_calc = df_calc.with_columns(
         (pl.col("Return").abs() > (2.5 * pl.col("Rolling_Std"))).alias("Is_Anomaly")
     )
-    
+
     # Map Headlines for Contextual Intelligence
     HEADLINES = {
         "2023-08-14": "PASO Elections Shock",
@@ -68,18 +69,18 @@ def __(df, pl, ticker_dropdown):
         "2024-06-13": "Ley Bases Approved in Senate",
         "2024-08-05": "Global Market Sell-off (Black Monday)"
     }
-    
+
     # Convert dates to string (YYYY-MM-DD) for lookup and map headlines
     df_calc = df_calc.with_columns(
         pl.col("Date").cast(pl.Utf8).str.slice(0, 10).replace(HEADLINES, default="Unknown Volatility Event").alias("Headline")
     )
-    return HEADLINES, df_calc, selected_ticker
+    return df_calc, selected_ticker
 
 
 @app.cell
-def __(df_calc, go, pl, selected_ticker, theme_switch):
+def _(df_calc, go, pl, selected_ticker, theme_switch):
     fig = go.Figure()
-    
+
     # Base line chart
     fig.add_trace(go.Scatter(
         x=df_calc["Date"], 
@@ -88,14 +89,14 @@ def __(df_calc, go, pl, selected_ticker, theme_switch):
         name='Close Price',
         line=dict(color='#1f77b4')
     ))
-    
+
     # Anomalies
     anomalies = df_calc.filter(pl.col("Is_Anomaly") == True)
-    
+
     # Separate positives and negatives for coloring
     anomalies_pos = anomalies.filter(pl.col("Return") > 0)
     anomalies_neg = anomalies.filter(pl.col("Return") < 0)
-    
+
     # Positive Anomalies
     if len(anomalies_pos) > 0:
         fig.add_trace(go.Scatter(
@@ -107,7 +108,7 @@ def __(df_calc, go, pl, selected_ticker, theme_switch):
             customdata=anomalies_pos["Headline"],
             hovertemplate="<b>Date:</b> %{x}<br><b>Price:</b> $%{y:.2f}<br><b>Event:</b> %{customdata}<extra></extra>"
         ))
-    
+
     # Negative Anomalies
     if len(anomalies_neg) > 0:
         fig.add_trace(go.Scatter(
@@ -119,7 +120,7 @@ def __(df_calc, go, pl, selected_ticker, theme_switch):
             customdata=anomalies_neg["Headline"],
             hovertemplate="<b>Date:</b> %{x}<br><b>Price:</b> $%{y:.2f}<br><b>Event:</b> %{customdata}<extra></extra>"
         ))
-    
+
     fig.update_layout(
         title=f"Price and Volatility for {selected_ticker}",
         xaxis_title="Date",
@@ -127,11 +128,11 @@ def __(df_calc, go, pl, selected_ticker, theme_switch):
         template="plotly_dark" if theme_switch.value else "plotly_white",
         hovermode="x unified"
     )
-    return anomalies, anomalies_neg, anomalies_pos, fig
+    return anomalies, fig
 
 
 @app.cell
-def __(anomalies, fig, mo, theme_switch, ticker_dropdown):
+def _(anomalies, fig, mo, theme_switch, ticker_dropdown):
     # UI Layout
     mo.vstack([
         mo.md("# Market Volatility Dashboard"),
@@ -143,6 +144,11 @@ def __(anomalies, fig, mo, theme_switch, ticker_dropdown):
             selection=None
         )
     ])
+    return
+
+
+@app.cell
+def _():
     return
 
 
