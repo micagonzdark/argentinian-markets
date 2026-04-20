@@ -4,7 +4,7 @@ import pandas as pd
 import duckdb
 
 def fetch_and_store_data():
-    tickers = ['^MERV', 'YPF', 'GGAL', 'ARS=X']
+    tickers = ['^MERV', 'YPF', 'GGAL', 'GGAL.BA', 'ARS=X']
     all_data = []
     
     for ticker in tickers:
