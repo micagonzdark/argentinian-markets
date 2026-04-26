@@ -34,13 +34,13 @@ jobs:
         
     - name: Export Static Dashboard
     run: |
-      marimo export html dashboard.py --output index.html
+      marimo export html dashboard.py --output docs/index.html
       
     - name: Commit and Push Changes
     if: github.event_name != 'pull_request'
     run: |
       git config --global user.name 'github-actions[bot]'
       git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-      git add index.html
+      git add docs/index.html
       git commit -m "auto: update dashboard data [skip ci]" || echo "No changes to commit"
       git push

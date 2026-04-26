@@ -42,12 +42,15 @@ graph LR
 ## 📸 Showcase & Demos
 
 ### Interactive Dashboard
-![Dashboard Demo](assets/demo.gif)
+![Dashboard Demo](docs/assets/demo.gif)
 *Note: This dashboard allows filtering by political events and visualizing denoised trends.*
 
 ### Market SNR Table
-![SNR Table](assets/snr_table.png)
+![SNR Table](docs/assets/snr_table.png)
 *Assets with lower SNR ratios indicate higher sensitivity to political "noise".*
+
+## 📄 Viewing Without Running
+If you just want to see the results without installing anything, check the **[Live Interactive Dashboard](https://micagonzdark.github.io/argentinian-markets/)** or browse the screenshots in the `docs/assets/` folder.
 
 ## 🚦 Getting Started
 
@@ -79,9 +82,6 @@ Launch the interactive Marimo server:
 ```bash
 python -m marimo edit dashboard.py
 ```
-
-## 📄 Viewing Without Running
-If you just want to see the results without installing anything, check the **[Live Interactive Dashboard](https://micagonzdark.github.io/argentinian-markets/)** or browse the screenshots in the `assets/` folder.
 
 ---
 
