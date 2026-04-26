@@ -1,0 +1,16 @@
+services:
+  dashboard:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: marimo run dashboard.py --host 0.0.0.0 --port 8080
+
+  data-fetcher:
+    build: .
+    volumes:
+      - .:/app
+    command: python fetch_data.py

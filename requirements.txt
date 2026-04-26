@@ -1,5 +1,10 @@
-polars
-duckdb
-marimo
-yfinance
-scipy
+polars>=0.20.0
+duckdb>=0.10.0
+marimo>=0.2.0
+yfinance>=0.2.36
+scipy>=1.12.0
+plotly>=5.18.0
+pandas>=2.2.0
+numpy>=1.26.0
+pytest>=8.0.0
+pytest-mock>=3.12.0
