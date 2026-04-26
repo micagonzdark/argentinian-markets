@@ -81,7 +81,7 @@ python -m marimo edit dashboard.py
 ```
 
 ## 📄 Viewing Without Running
-If you just want to see the results without installing anything, check the **[static dashboard export](dashboard.html)** (coming soon) or browse the screenshots in the `assets/` folder.
+If you just want to see the results without installing anything, check the **[Live Interactive Dashboard](https://micagonzdark.github.io/argentinian-markets/)** or browse the screenshots in the `assets/` folder.
 
 ---
 
